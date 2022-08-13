@@ -1,0 +1,23 @@
+- name: This playbook is to delete the tibco {{ aws_account_name }} {{ tibco_env_name }} {{ application_name }} solution AWS resources and the respective launch template 
+  connection: local
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - vars/main.yml
+ 
+  tasks:
+  - name: retrieve the account alias name
+    shell: aws iam list-account-aliases
+    register: account_alias_raw
+ 
+  - name: parse account name json output
+    set_fact:
+      account_alias_name: "{{ account_alias_raw.stdout|from_json }}"
+ 
+  - name: set account name of current account
+    set_fact:
+      aws_account_name: "{{ account_alias_name.AccountAliases[0] }}"
+  - name: delete an tibco {{ application_name }}-ansible-cloudformation stack
+    cloudformation:
+      stack_name: "tibco-{{ tibco_env_name }}-app-{{ application_name }}-cloudformation"
+      state: absent

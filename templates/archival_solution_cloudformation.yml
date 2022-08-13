@@ -1,0 +1,50 @@
+Parameters:
+  AWSAccountName:
+    Description: "Defining the name of the account"
+    Type: String
+ 
+Resources:
+  # Archival files S3 bucket for WIS-Archive solutions.
+  WisArchiveArchivalBucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Sub "${AWSAccountName}-{{ tibco_env_name }}-wis-archival"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+ 
+  # Archival lambda for files processing for WIS-Archive solutions.
+  WisArchiveArchivalLambda:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Description: "This lambda is responsible for archieving the source files as a part of wis archival."
+      Environment:
+        Variables:
+          batchSize: "{{ batchSize }}"
+      FunctionName: !Sub "{{ application_name }}-{{ tibco_env_name }}-ArchivalLambda"
+      Handler: "com.nabwis.archival.App::handleRequest"
+      Code:
+        S3Bucket: !Sub "hellotrupti"
+        S3Key: "lambda/hello-lambda.jar"
+      MemorySize: {{ MemorySize }}
+      Role: !GetAtt WisArchiveLambdaRole.Arn
+      Runtime: "java8"
+      Timeout: {{ Timeout }}
+      TracingConfig:
+        Mode: "PassThrough"
+      VpcConfig:
+        SubnetIds:
+          - "{{ subnet_az_a }}"
+      
+Outputs:
+  StackName:
+    Description: The wis-archive solution cloud formation stack name
+    Value: !Sub "${AWS::StackName}"
+  S3ArchivalBucket:
+    Value: !Ref WisArchiveArchivalBucket
+    Description: Name of the wis-archive solution Archival S3 bucket.
+  ArchivalLambdaArchiveSolution:
+    Value: !Ref WisArchiveArchivalLambda
+    Description: Name of the wis-archive solution Archival Lambda.

@@ -1,0 +1,40 @@
+- name: This playbook is to provision an tibco {{ aws_account_name }} {{ tibco_env_name }} archival solution AWS resources
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - vars/main.yml
+    
+  tasks:
+  - name: retrieve the account alias name
+    shell: aws iam list-account-aliases
+    register: account_alias_raw
+ 
+  - name: parse account name json output
+    set_fact:
+      account_alias_name: "{{ account_alias_raw.stdout|from_json }}"
+ 
+  - name: set account name of current account
+    set_fact:
+      aws_account_name: "{{ account_alias_name.AccountAliases[0] }}"
+      
+  - name: launching an tibco {{ application_name }}-ansible-cloudformation stack
+    cloudformation:
+      stack_name: "tibco-{{ tibco_env_name }}-app-{{ application_name }}-cloudformation"
+      state: present
+      region: "{{ region }}"
+      disable_rollback: true
+      termination_protection: yes
+      template_body: "{{ lookup('template', 'archival_solution_cloudformation.yml') }}"
+      template_parameters:
+        AWSAccountName: "{{ aws_account_name }}"
+    register: application_name
+ 
+  - name: Stack Resources
+    debug:
+      var: "{{ item }}"
+    with_list: application_name.stack_resources
+    
+  - name: show stack outputs
+    debug:
+        var: application_name.stack_outputs

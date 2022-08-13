@@ -1,0 +1,29 @@
+- name: This playbook is to verify format of the cloudformation template
+  hosts: local
+  connection: local
+  gather_facts: false
+  vars_files:
+    - vars/main.yml
+ 
+# Launch the cloudwatch cloudformation-launchtemplate.yml template.
+ 
+  tasks:
+  - name: dump cloudformation template
+    template:
+        src: templates/archival_solution_cloudformation.yml
+        dest: /tmp/archival_solution_cloudformation.yml
+ 
+  - name: Yamllint cloudformation
+    command:
+        argv:
+            - yamllint
+            - -d
+            - '{ rules: { line-length: { max: 180, allow-non-breakable-words: true, allow-non-breakable-inline-mappings: true }}}'
+            - /tmp/archival_solution_cloudformation.yml
+    args:
+        creates: nothing
+ 
+  - name: validate CF
+    command: aws cloudformation validate-template --template-body file:///tmp/archival_solution_cloudformation.yml
+    args:
+     creates: nothing

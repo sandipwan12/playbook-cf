@@ -1,0 +1,867 @@
+Parameters:
+  BucketEncryptionKey:
+    Description: Defining server side encryption using aws:kms
+    Type: String
+    Default: aws/s3
+  AWSAccountName:
+    Description: "Defining the name of the account"
+    Type: String
+ 
+Resources:
+  # KMS Key for WIS-Archive solutions AWS lambda (Archival and Retrieval) and EFS.
+  WisArchiveLambdaKMSAlias:
+    Type: "AWS::KMS::Alias"
+    DeletionPolicy: Retain
+    Properties:
+      AliasName: alias/{{ lambda_archive_kms_key_alias }}
+      TargetKeyId: !Ref WisArchiveLambdaKMSKey
+ 
+  WisArchiveLambdaKMSKey:
+    Type: "AWS::KMS::Key"
+    DeletionPolicy: Retain
+    Properties:
+      Description: "This kms key is used for encrypting the wis-archival ${AWSAccountName} objects in s3 buckets at rest."
+      KeyUsage: "ENCRYPT_DECRYPT"
+      KeyPolicy: !Sub |
+        {
+          "Version" : "2012-10-17",
+          "Id" : "{{ lambda_archive_kms_key_alias }}-id",
+          "Statement" : [ {
+            "Sid" : "Enable IAM User Permissions",
+            "Effect" : "Allow",
+            "Principal" : {
+              "AWS" : "arn:aws:iam::${AWS::AccountId}:root"
+            },
+            "Action" : "kms:*",
+            "Resource" : "*"
+          }, {
+            "Sid" : "Allow access for Key Administrators",
+            "Effect" : "Allow",
+            "Principal" : {
+              "AWS" : "arn:aws:iam::${AWS::AccountId}:role/{{ aws_account_admin_role }}"
+            },
+            "Action" : [ "kms:Create*", "kms:Describe*", "kms:Enable*", "kms:List*", "kms:Put*", "kms:Update*", "kms:Revoke*", "kms:Disable*", "kms:Get*", "kms:Delete*", "kms:TagResource", "kms:UntagResource", "kms:ScheduleKeyDeletion", "kms:CancelKeyDeletion" ],
+            "Resource" : "*"
+          }, {
+            "Sid" : "Allow use of the key",
+            "Effect" : "Allow",
+            "Principal" : {
+              "AWS" : "arn:aws:iam::${AWS::AccountId}:role/${WisArchiveLambdaRole}"
+            },
+            "Action" : [ "kms:Encrypt", "kms:Decrypt", "kms:ReEncrypt*", "kms:GenerateDataKey*", "kms:DescribeKey" ],
+            "Resource" : "*"
+          }, {
+            "Sid" : "Allow attachment of persistent resources",
+            "Effect" : "Allow",
+            "Principal" : {
+              "AWS" : "arn:aws:iam::${AWS::AccountId}:role/${WisArchiveLambdaRole}"
+            },
+            "Action" : [ "kms:CreateGrant", "kms:ListGrants", "kms:RevokeGrant" ],
+            "Resource" : "*",
+            "Condition" : {
+              "Bool" : {
+                "kms:GrantIsForAWSResource" : "true"
+             }
+            }
+          } ]
+        }
+      Tags:
+        - Key: Name
+          Value: "{{ tag_name }}"
+        - Key: ApplicationID
+          Value: "{{ tag_AccountID }}"
+        - Key: CostCentre
+          Value: "{{ tag_costcentre }}"
+        - Key: PowerMgt
+          Value: "{{ tag_powermgt }}"
+        - Key: Owner
+          Value: "{{ tag_Owner }}"
+        - Key: Environment
+          Value: "{{ tag_env }}"
+ 
+  # KMS Key for WIS-Archive solutions S3 buckets
+  WisArchiveS3KMSAlias:
+    Type: "AWS::KMS::Alias"
+    DeletionPolicy: Retain
+    Properties:
+      AliasName: alias/{{ s3_archive_kms_key_alias }}
+      TargetKeyId: !Ref WisArchiveS3KMSKey
+ 
+  WisArchiveS3KMSKey:
+    Type: "AWS::KMS::Key"
+    DeletionPolicy: Retain
+    Properties:
+      Enabled: true
+      Description: "This key is used to encrypt and decrypt the objects at rest in the S3 for wis-archive ${AWSAccountName} buckets."
+      KeyUsage: "ENCRYPT_DECRYPT"
+      KeyPolicy: !Sub |
+        {
+          "Version" : "2012-10-17",
+          "Id" :  "{{ s3_archive_kms_key_alias }}-id",
+          "Statement" : [ {
+            "Sid" : "Enable IAM User Permissions",
+            "Effect" : "Allow",
+            "Principal" : {
+              "AWS" : "arn:aws:iam::${AWS::AccountId}:root"
+            },
+            "Action" : "kms:*",
+            "Resource" : "*"
+          },{
+            "Sid" : "Allow use of the key",
+            "Effect" : "Allow",
+            "Principal" : {
+              "AWS" : "arn:aws:iam::${AWS::AccountId}:role/${WisArchiveLambdaRole}"
+            },
+            "Action" : [ "kms:Encrypt", "kms:Decrypt", "kms:ReEncrypt*", "kms:GenerateDataKey*", "kms:DescribeKey" ],
+            "Resource" : "*"
+          }]
+        }
+      Tags:
+        - Key: Name
+          Value: "{{ tag_name }}"
+        - Key: ApplicationID
+          Value: "{{ tag_AccountID }}"
+        - Key: CostCentre
+          Value: "{{ tag_costcentre }}"
+        - Key: PowerMgt
+          Value: "{{ tag_powermgt }}"
+        - Key: Owner
+          Value: "{{ tag_Owner }}"
+        - Key: Environment
+          Value: "{{ tag_env }}"
+ 
+  # IAM role for Archive and Retrieve Lambda with require permission for WIS-Archive solutions.
+  WisArchiveLambdaRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName: "{{ application_name }}-{{tibco_env_name}}-app-S3FullAccess-LambdaRole"
+      AssumeRolePolicyDocument: '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"lambda.amazonaws.com"},"Action":"sts:AssumeRole"}]}'
+      MaxSessionDuration: 3600
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaRole"
+        - "arn:aws:iam::aws:policy/AmazonElasticFileSystemClientFullAccess"
+      Tags:
+        - Key: Name
+          Value: "{{ tag_name }}"
+        - Key: ApplicationID
+          Value: "{{ tag_AccountID }}"
+        - Key: CostCentre
+          Value: "{{ tag_costcentre }}"
+        - Key: PowerMgt
+          Value: "{{ tag_powermgt }}"
+        - Key: Owner
+          Value: "{{ tag_Owner }}"
+        - Key: Environment
+          Value: "{{ tag_env }}"
+ 
+  # Archival source files S3 bucket for WIS-Archive solutions.
+  WisArchiveArchivalSourceBucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Sub "${AWSAccountName}-{{ tibco_env_name }}-wis-archival-source"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: "aws:kms"
+              KMSMasterKeyID: !GetAtt WisArchiveS3KMSKey.Arn
+            BucketKeyEnabled: true
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Name
+          Value: "{{ tag_name }}"
+        - Key: ApplicationID
+          Value: "{{ tag_AccountID }}"
+        - Key: CostCentre
+          Value: "{{ tag_costcentre }}"
+        - Key: PowerMgt
+          Value: "{{ tag_powermgt }}"
+        - Key: Owner
+          Value: "{{ tag_Owner }}"
+        - Key: Environment
+          Value: "{{ tag_env }}"
+  # Archival files S3 bucket for WIS-Archive solutions.
+  WisArchiveArchivalBucket:
+    Type: "AWS::S3::Bucket"
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub "${AWSAccountName}-{{ tibco_env_name }}-wis-archival"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: "aws:kms"
+              KMSMasterKeyID: !GetAtt WisArchiveS3KMSKey.Arn
+            BucketKeyEnabled: true
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: "DeleteAfter12Years"
+            Status: "Enabled"
+            ExpirationInDays: 4380
+          - Id: "MoveObjectToS3GlacierAfter3Months"
+            Status: "Enabled"
+            Transitions:
+              - TransitionInDays: 90
+                StorageClass: "GLACIER"
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: "s3:ObjectRestore:Completed"
+            Function: !GetAtt WisArchiveRetrievalLambda.Arn
+      Tags:
+        - Key: Name
+          Value: "{{ tag_name }}"
+        - Key: ApplicationID
+          Value: "{{ tag_AccountID }}"
+        - Key: CostCentre
+          Value: "{{ tag_costcentre }}"
+        - Key: PowerMgt
+          Value: "{{ tag_powermgt }}"
+        - Key: Owner
+          Value: "{{ tag_Owner }}"
+        - Key: Environment
+          Value: "{{ tag_env }}"
+ 
+  # Retrieval files S3 bucket for WIS-Archive solutions.
+  WisArchiveRetrievalBucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Sub "${AWSAccountName}-{{ tibco_env_name }}-wis-retrieval"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: "aws:kms"
+              KMSMasterKeyID: !GetAtt WisArchiveS3KMSKey.Arn
+            BucketKeyEnabled: true
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: "expires-after-a-day"
+            Status: "Enabled"
+            ExpirationInDays: 1
+      Tags:
+        - Key: Name
+          Value: "{{ tag_name }}"
+        - Key: ApplicationID
+          Value: "{{ tag_AccountID }}"
+        - Key: CostCentre
+          Value: "{{ tag_costcentre }}"
+        - Key: PowerMgt
+          Value: "{{ tag_powermgt }}"
+        - Key: Owner
+          Value: "{{ tag_Owner }}"
+        - Key: Environment
+          Value: "{{ tag_env }}"
+          
+  # Temp Retrieval files S3 bucket for WIS-Archive solutions.
+  WisArchiveTempRetrievalBucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Sub "${AWSAccountName}-{{ tibco_env_name }}-wis-temp-retrieval"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: "aws:kms"
+              KMSMasterKeyID: !GetAtt WisArchiveS3KMSKey.Arn
+            BucketKeyEnabled: true
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: "s3:ObjectCreated:*"
+            Function: !GetAtt WisArchiveRetrievalLambda.Arn
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Name
+          Value: "{{ tag_name }}"
+        - Key: ApplicationID
+          Value: "{{ tag_AccountID }}"
+        - Key: CostCentre
+          Value: "{{ tag_costcentre }}"
+        - Key: PowerMgt
+          Value: "{{ tag_powermgt }}"
+        - Key: Owner
+          Value: "{{ tag_Owner }}"
+        - Key: Environment
+          Value: "{{ tag_env }}"
+ 
+  # EFS for files processing for WIS-Archive solutions.
+  WisArchiveEFSFileSystem:
+    Type: "AWS::EFS::FileSystem"
+    Properties:
+      PerformanceMode: "generalPurpose"
+      Encrypted: true
+     KmsKeyId: !Ref WisArchiveLambdaKMSKey
+      ThroughputMode: "bursting"
+      FileSystemTags:
+        - Key: "Name"
+          Value: !Sub "{{ application_name }}-{{ tibco_env_name }}-efs"
+        - Key: ApplicationID
+          Value: "{{ tag_AccountID }}"
+        - Key: CostCentre
+          Value: "{{ tag_costcentre }}"
+        - Key: PowerMgt
+          Value: "{{ tag_powermgt }}"
+        - Key: Owner
+          Value: "{{ tag_Owner }}"
+        - Key: Environment
+          Value: "{{ tag_env }}"
+ 
+  # Mount targets for EFS files processing for WIS-Archive solutions.
+  # Avalability zone A
+  WisArchiveEFSMountTargetAZa:
+    Type: "AWS::EFS::MountTarget"
+    Properties:
+      FileSystemId: !Ref WisArchiveEFSFileSystem
+      SecurityGroups:
+        - !Ref WisArchiveLambdaSecurityGroup
+      SubnetId: "{{ subnet_az_a }}"
+ 
+  # Avalability zone B
+  WisArchiveEFSMountTargetAZb:
+    Type: "AWS::EFS::MountTarget"
+    Properties:
+      FileSystemId: !Ref WisArchiveEFSFileSystem
+      SecurityGroups:
+        - !Ref WisArchiveLambdaSecurityGroup
+      SubnetId: "{{ subnet_az_b }}"
+ 
+  # Avalability zone C
+  WisArchiveEFSMountTargetAZc:
+    Type: "AWS::EFS::MountTarget"
+    Properties:
+      FileSystemId: !Ref WisArchiveEFSFileSystem
+      SecurityGroups:
+        - !Ref WisArchiveLambdaSecurityGroup
+      SubnetId: "{{ subnet_az_c }}"
+ 
+  # EFS access point for WIS-Archive solutions archive and retrieve lambda.
+  WisArchiveEFSAccessPoint:
+    Type: "AWS::EFS::AccessPoint"
+    Properties:
+      FileSystemId: !Ref WisArchiveEFSFileSystem
+      AccessPointTags:
+        - Key: "Name"
+          Value: !Sub "{{ application_name }}-{{ tibco_env_name }}-efs-lambda-access-point"
+      PosixUser:
+        Uid: 1000
+        Gid: 1000
+        SecondaryGids:
+          - 0
+      RootDirectory:
+        Path: "/efs"
+        CreationInfo:
+          OwnerUid: 1000
+          OwnerGid: 1000
+          Permissions: "777"
+ 
+  # Archival lambda for files processing for WIS-Archive solutions.
+  WisArchiveArchivalLambda:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Description: "This lambda is responsible for archieving the source files as a part of wis archival."
+      Environment:
+        Variables:
+          bucketName: !Sub "${AWSAccountName}-{{ tibco_env_name }}-wis-archival"
+          keyArn: !GetAtt WisArchiveLambdaKMSKey.Arn
+          sourceBucketName: !Sub "${AWSAccountName}-{{ tibco_env_name }}-wis-archival-source"
+          passphrase: "{{ passPhrase }}"
+          batchSize: "{{ batchSize }}"
+          region: "{{ region }}"
+          sourcePath: "{{ efs_source_path }}"
+          http_proxy: "{{ hip_proxy }}:{{ hip_proxy_port }}"
+          https_proxy: "{{ hip_proxy }}:{{ hip_proxy_port }}"
+          no_proxy: "{{ hip_no_proxy }}"
+          privateKeyBucket: !Sub "${AWSAccountName}-{{ tibco_env_name }}-wis-artifact"
+      FunctionName: !Sub "{{ application_name }}-{{ tibco_env_name }}-ArchivalLambda"
+      Handler: "com.nabwis.archival.App::handleRequest"
+      Code:
+        S3Bucket: !Sub "${AWSAccountName}-{{ tibco_env_name }}-wis-artifact"
+        S3Key: "lambda/archive-lambda.jar"
+      MemorySize: {{ MemorySize }}
+      Role: !GetAtt WisArchiveLambdaRole.Arn
+      Runtime: "java8"
+      Timeout: {{ Timeout }}
+      TracingConfig:
+        Mode: "PassThrough"
+      VpcConfig:
+        SubnetIds:
+          - "{{ subnet_az_a }}"
+          - "{{ subnet_az_b }}"
+          - "{{ subnet_az_c }}"
+        SecurityGroupIds:
+          - !Ref WisArchiveLambdaSecurityGroup
+      FileSystemConfigs:
+        - Arn: !GetAtt WisArchiveEFSAccessPoint.Arn
+          LocalMountPath: "/mnt/efs"
+      Tags:
+        - Key: Name
+          Value: "{{ tag_name }}"
+        - Key: ApplicationID
+          Value: "{{ tag_AccountID }}"
+        - Key: CostCentre
+          Value: "{{ tag_costcentre }}"
+        - Key: PowerMgt
+          Value: "{{ tag_powermgt }}"
+        - Key: Owner
+          Value: "{{ tag_Owner }}"
+        - Key: Environment
+          Value: "{{ tag_env }}"
+    DependsOn:
+      - WisArchiveEFSMountTargetAZa
+      - WisArchiveEFSMountTargetAZb
+      - WisArchiveEFSMountTargetAZc
+ 
+# Cloud watch event schedule to invoke the Archival lambda on every 15th of month for Wis-Archival solution.
+  WisArchiveArchivalLambdaEventRule:
+    Type: "AWS::Events::Rule"
+    Properties:
+      Name: "{{ application_name }}-ExecuteOnceAMonth"
+      Description: "This function triggers the archive lambda on 15th of every month."
+      ScheduleExpression: "cron(0 0 15 * ? *)"
+      State: "ENABLED"
+      Targets:
+        - Arn: !GetAtt WisArchiveArchivalLambda.Arn
+          Id: "Id1931438081409"
+          Input: '""'
+      EventBusName: "default"
+ 
+  # Retrieval lambda for files processing for WIS-Archive solutions.
+  WisArchiveRetrievalLambda:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Description: "This lambda is responsible for retireving the archived files as a part of wis archival."
+      Environment:
+        Variables:
+          temporaryDirectory: "{{ efs_processing_directory }}"
+          destinationBucket: !Sub "${AWSAccountName}-{{ tibco_env_name }}-wis-retrieval"
+          keyArn: !GetAtt WisArchiveLambdaKMSKey.Arn
+          temporaryBucket: !Sub "${AWSAccountName}-{{ tibco_env_name }}-wis-temp-retrieval"
+          region: "{{ region }}"
+          http_proxy: "{{ hip_proxy }}:{{ hip_proxy_port }}"
+          https_proxy: "{{ hip_proxy }}:{{ hip_proxy_port }}"
+          no_proxy: "{{ hip_no_proxy }}"
+      FunctionName: !Sub "{{ application_name }}-{{ tibco_env_name }}-RetrievalLambda"
+      Handler: "com.nabwis.retrieval.App::handleRequest"
+      Code:
+        S3Bucket: !Sub "${AWSAccountName}-{{ tibco_env_name }}-wis-artifact"
+        S3Key: "lambda/retrieval-lambda.jar"
+      MemorySize: {{ RevMemorySize }}
+      Role: !GetAtt WisArchiveLambdaRole.Arn
+      Runtime: "java8"
+      Timeout: {{ RevTimeout }}
+      TracingConfig:
+        Mode: "PassThrough"
+      VpcConfig:
+        SubnetIds:
+          - "{{ subnet_az_a }}"
+          - "{{ subnet_az_b }}"
+          - "{{ subnet_az_c }}"
+        SecurityGroupIds:
+          - !Ref WisArchiveLambdaSecurityGroup
+      FileSystemConfigs:
+        - Arn: !GetAtt WisArchiveEFSAccessPoint.Arn
+          LocalMountPath: "/mnt/efs"
+      Tags:
+        - Key: Name
+          Value: "{{ tag_name }}"
+        - Key: ApplicationID
+          Value: "{{ tag_AccountID }}"
+        - Key: CostCentre
+          Value: "{{ tag_costcentre }}"
+        - Key: PowerMgt
+          Value: "{{ tag_powermgt }}"
+        - Key: Owner
+          Value: "{{ tag_Owner }}"
+        - Key: Environment
+          Value: "{{ tag_env }}"
+    DependsOn:
+      - WisArchiveEFSMountTargetAZa
+      - WisArchiveEFSMountTargetAZb
+      - WisArchiveEFSMountTargetAZc
+ 
+  # Lambda Invoke Permission for Temp Retrieval S3 bucket for WIS-Archive solutions.
+  WisArchiveLambdaPermissionForTempRetrievalBucket:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !GetAtt WisArchiveRetrievalLambda.Arn
+      Principal: "s3.amazonaws.com"
+      SourceArn: !Sub "arn:aws:s3:::${AWSAccountName}-{{ tibco_env_name }}-wis-temp-retrieval"
+ 
+  # Lambda Invoke Permission for Archial S3 bucket for WIS-Archive solutions.
+  WisArchiveLambdaPermissionForArchivalBucket:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !GetAtt WisArchiveRetrievalLambda.Arn
+      Principal: "s3.amazonaws.com"
+      SourceArn: !Sub "arn:aws:s3:::${AWSAccountName}-{{ tibco_env_name }}-wis-archival"
+ 
+  PermissionForEventsToInvokeLambda: 
+    Type: "AWS::Lambda::Permission"
+    Properties: 
+      FunctionName: !Ref "WisArchiveArchivalLambda"
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: 
+        Fn::GetAtt: 
+          - "WisArchiveArchivalLambdaEventRule"
+          - "Arn"
+ 
+  # Lambda security group to allow the comminication between EFS and Lambda for WIS-Archive solutions.
+  WisArchiveLambdaSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "Allow NFS port access."
+      GroupName: !Sub "{{ application_name }}-{{ tibco_env_name }}-archivallambda-sg"
+      VpcId: "{{ vpc_id }}"
+      SecurityGroupIngress:
+        - CidrIp: "{{ vpc_ip_range }}"
+          FromPort: 22
+          IpProtocol: "tcp"
+          ToPort: 22
+        - CidrIp: "{{ vpc_ip_range }}"
+          FromPort: 2049
+          IpProtocol: "tcp"
+          ToPort: 2049
+      SecurityGroupEgress:
+        - CidrIp: "0.0.0.0/0"
+          IpProtocol: "-1"
+      Tags:
+        - Key: Name
+          Value: "{{ tag_name }}"
+        - Key: ApplicationID
+          Value: "{{ tag_AccountID }}"
+        - Key: CostCentre
+          Value: "{{ tag_costcentre }}"
+        - Key: PowerMgt
+          Value: "{{ tag_powermgt }}"
+        - Key: Owner
+          Value: "{{ tag_Owner }}"
+        - Key: Environment
+          Value: "{{ tag_env }}"
+ 
+  WisArchiveArchivalSourceBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WisArchiveArchivalSourceBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+# Encryption In Transit
+          -
+            Sid: Enforce Encryption in Transit
+            Effect: Deny
+            Principal: "*"
+            Action: 
+              - s3:*
+            Resource: 
+              - !Sub "arn:aws:s3:::${AWSAccountName}-{{ tibco_env_name }}-wis-archival-source/*"
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+#Enforce only NAB account access
+          -
+            Sid: NAB owned principles only
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource: 
+              - !Sub "arn:aws:s3:::${AWSAccountName}-{{ tibco_env_name }}-wis-archival-source/*"
+            Condition:
+              StringNotEquals:
+                aws:PrincipalOrgID: "o-0rxo6itxil"
+# Public Constraint
+          -
+            Sid: PublicConstraint
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:PutObject"
+            Resource: 
+              - !Sub "arn:aws:s3:::${AWSAccountName}-{{ tibco_env_name }}-wis-archival-source/*"
+            Condition:
+              StringEquals:
+                s3:x-amz-acl: 
+                  - "public-read"
+                  - "public-read-write"
+# Access By Specific VPCEOnly
+          -
+            Sid: AccessBySpecificVPCEOnly
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource: 
+              - !Sub "arn:aws:s3:::${AWSAccountName}-{{ tibco_env_name }}-wis-archival-source/*"
+            Condition:
+              StringNotEquals:
+                aws:SourceVpce:
+                  - "{{ private_vpce }}"
+                  - "{{ tooling_vpce }}"
+              ArnNotLike:
+                aws:PrincipalArn:
+                  - "arn:aws:iam::{{ aws_account_id }}:role/{{ aws_account_admin_role }}"
+                  - "arn:aws:iam::{{ aws_account_id }}:role/{{ provisioning_profile_name }}"
+                  - "arn:aws:iam::{{ aws_account_id }}:role/{{ aws_account_readonly_role }}"
+                  - "arn:aws:iam::{{ aws_account_id }}:role/{{ application_name }}-{{tibco_env_name}}-app-S3FullAccess-LambdaRole"
+ 
+  WisArchiveArchivalBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WisArchiveArchivalBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+# Encryption In Transit
+          -
+            Sid: Enforce Encryption in Transit
+            Effect: Deny
+            Principal: "*"
+            Action: 
+              - s3:*
+            Resource: 
+              - !Sub "arn:aws:s3:::${AWSAccountName}-{{ tibco_env_name }}-wis-archival/*"
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+# Accidental Delete protection
+          -
+            Sid: Accidental Delete protection
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:DeleteObject"
+            Resource: 
+              - !Sub "arn:aws:s3:::${AWSAccountName}-{{ tibco_env_name }}-wis-archival/*"
+#Enforce only NAB account access
+          -
+            Sid: NAB owned principles only
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource: 
+              - !Sub "arn:aws:s3:::${AWSAccountName}-{{ tibco_env_name }}-wis-archival/*"
+            Condition:
+              StringNotEquals:
+                aws:PrincipalOrgID: "o-0rxo6itxil"
+# Public Contraint
+          -
+            Sid: PublicConstraint
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:PutObject"
+            Resource: 
+              - !Sub "arn:aws:s3:::${AWSAccountName}-{{ tibco_env_name }}-wis-archival/*"
+            Condition:
+              StringEquals:
+                s3:x-amz-acl: 
+                  - "public-read"
+                  - "public-read-write"
+# Access By Specific VPCEOnly
+          -
+            Sid: AccessBySpecificVPCEOnly
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource: 
+              - !Sub "arn:aws:s3:::${AWSAccountName}-{{ tibco_env_name }}-wis-archival/*"
+            Condition:
+              StringNotEquals:
+                aws:SourceVpce:
+                  - "{{ private_vpce }}"
+                  - "{{ tooling_vpce }}"
+              ArnNotLike:
+                aws:PrincipalArn:
+                  - "arn:aws:iam::{{ aws_account_id }}:role/{{ aws_account_admin_role }}"
+                  - "arn:aws:iam::{{ aws_account_id }}:role/{{ provisioning_profile_name }}"
+                  - "arn:aws:iam::{{ aws_account_id }}:role/{{ aws_account_readonly_role }}"
+                  - "arn:aws:iam::{{ aws_account_id }}:role/{{ application_name }}-{{tibco_env_name}}-app-S3FullAccess-LambdaRole"
+ 
+  WisArchiveRetrievalBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WisArchiveRetrievalBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+# Encryption In Transit
+          -
+            Sid: Enforce Encryption in Transit
+            Effect: Deny
+            Principal: "*"
+            Action: 
+              - s3:*
+            Resource: 
+              - !Sub "arn:aws:s3:::${AWSAccountName}-{{ tibco_env_name }}-wis-retrieval/*"
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+#Enforce only NAB account access
+          -
+            Sid: NAB owned principles only
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource: 
+              - !Sub "arn:aws:s3:::${AWSAccountName}-{{ tibco_env_name }}-wis-retrieval/*"
+            Condition:
+              StringNotEquals:
+                aws:PrincipalOrgID: "o-0rxo6itxil"
+# Public Contraint
+          -
+            Sid: PublicConstraint
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:PutObject"
+            Resource: 
+              - !Sub "arn:aws:s3:::${AWSAccountName}-{{ tibco_env_name }}-wis-retrieval/*"
+            Condition:
+              StringEquals:
+                s3:x-amz-acl: 
+                  - "public-read"
+                  - "public-read-write"
+# Access By Specific VPCEOnly
+          -
+            Sid: AccessBySpecificVPCEOnly
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource: 
+              - !Sub "arn:aws:s3:::${AWSAccountName}-{{ tibco_env_name }}-wis-retrieval/*"
+            Condition:
+              StringNotEquals:
+                aws:SourceVpce:
+                  - "{{ private_vpce }}"
+                  - "{{ tooling_vpce }}"
+              ArnNotLike:
+               aws:PrincipalArn:
+                  - "arn:aws:iam::{{ aws_account_id }}:role/{{ aws_account_admin_role }}"
+                  - "arn:aws:iam::{{ aws_account_id }}:role/{{ provisioning_profile_name }}"
+                  - "arn:aws:iam::{{ aws_account_id }}:role/{{ aws_account_readonly_role }}"
+                  - "arn:aws:iam::{{ aws_account_id }}:role/{{ application_name }}-{{tibco_env_name}}-app-S3FullAccess-LambdaRole"
+ 
+  WisArchiveTempRetrievalBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WisArchiveTempRetrievalBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+# Encryption In Transit
+          -
+            Sid: Enforce Encryption in Transit
+            Effect: Deny
+            Principal: "*"
+            Action: 
+              - s3:*
+            Resource: 
+              - !Sub "arn:aws:s3:::${AWSAccountName}-{{ tibco_env_name }}-wis-temp-retrieval/*"
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+#Enforce only NAB account access
+          -
+            Sid: NAB owned principles only
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource: 
+              - !Sub "arn:aws:s3:::${AWSAccountName}-{{ tibco_env_name }}-wis-temp-retrieval/*"
+            Condition:
+              StringNotEquals:
+                aws:PrincipalOrgID: "o-0rxo6itxil"
+# Public Contraint
+          -
+            Sid: PublicConstraint
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:PutObject"
+            Resource: 
+              - !Sub "arn:aws:s3:::${AWSAccountName}-{{ tibco_env_name }}-wis-temp-retrieval/*"
+            Condition:
+              StringEquals:
+                s3:x-amz-acl: 
+                  - "public-read"
+                  - "public-read-write"
+# Access By Specific VPCEOnly
+          -
+            Sid: AccessBySpecificVPCEOnly
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource: 
+              - !Sub "arn:aws:s3:::${AWSAccountName}-{{ tibco_env_name }}-wis-temp-retrieval/*"
+            Condition:
+              StringNotEquals:
+                aws:SourceVpce:
+                  - "{{ private_vpce }}"
+                  - "{{ tooling_vpce }}"
+              ArnNotLike:
+                aws:PrincipalArn:
+                  - "arn:aws:iam::{{ aws_account_id }}:role/{{ aws_account_admin_role }}"
+                  - "arn:aws:iam::{{ aws_account_id }}:role/{{ provisioning_profile_name }}"
+                  - "arn:aws:iam::{{ aws_account_id }}:role/{{ aws_account_readonly_role }}"
+                  - "arn:aws:iam::{{ aws_account_id }}:role/{{ application_name }}-{{tibco_env_name}}-app-S3FullAccess-LambdaRole"
+ 
+Outputs:
+  StackName:
+    Description: The wis-archive solution cloud formation stack name
+    Value: !Sub "${AWS::StackName}"
+  KMSKeyArchiveLambda:
+    Value: !Ref WisArchiveLambdaKMSAlias
+    Description: Name of the wis-archive solution lambda KMS key.
+  KMSKeyArchivalS3Bucket:
+    Value: !Ref WisArchiveS3KMSAlias
+    Description: Name of the wis-archive solution s3 KMS key.
+  S3ArchivalBucket:
+    Value: !Ref WisArchiveArchivalBucket
+    Description: Name of the wis-archive solution Archival S3 bucket.
+  S3RetrievalBucket:
+    Value: !Ref WisArchiveRetrievalBucket
+    Description: Name of the wis-archive solution Retrieval S3 bucket.
+  S3ArchivalSourceBucket:
+    Value: !Ref WisArchiveArchivalSourceBucket
+    Description: Name of the wis-archive solution Source Archival S3 bucket.
+  S3TempRetrievalBucket:
+    Value: !Ref WisArchiveTempRetrievalBucket
+    Description: Name of the wis-archive solution Temp Retrieval S3 bucket.
+  EFSArchiveSolution:
+    Value: !Ref WisArchiveEFSFileSystem
+    Description: wis-archive EFS name solution EFS.
+  EFSMountTargetArchiveSolution:
+    Value: !Ref WisArchiveEFSMountTargetAZa
+    Description: Name of the wis-archive solution EFS mount target AZ A.
+  EFSMountTargetArchiveSolution:
+    Value: !Ref WisArchiveEFSMountTargetAZb
+    Description: Name of the wis-archive solution EFS mount target AZ B.
+  EFSMountTargetArchiveSolution:
+    Value: !Ref WisArchiveEFSMountTargetAZc
+    Description: Name of the wis-archive solution EFS mount target AZ C.
+  EFSAccessPointArchiveSolution:
+    Value: !Ref WisArchiveEFSAccessPoint
+    Description: Name of the wis-archive solution EFS access point.
+  ArchivalLambdaArchiveSolution:
+    Value: !Ref WisArchiveArchivalLambda
+    Description: Name of the wis-archive solution Archival Lambda.
+  ArchivalLambdaCloudWatchEventArchiveSolution:
+    Value: !Ref WisArchiveArchivalLambdaEventRule
+    Description: Name of the wis-archive solution Archival Lambda cloud watch event monthly execution.
+  RetrievalLambdaArchiveSolution:
+    Value: !Ref WisArchiveRetrievalLambda
+    Description: Name of the wis-archive solution Retrieval Lambda.
+  LambdaSgArchiveSolution:
+    Value: !Ref WisArchiveLambdaSecurityGroup
+    Description: Name of the wis-archive solution Lambda security group.

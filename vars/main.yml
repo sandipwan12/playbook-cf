@@ -1,0 +1,31 @@
+## AWS Environment specific variables for wis-archive playbook
+ 
+# wis-archive application name
+application_name: "sandip-test"
+ 
+# wis-archival Env Name
+tibco_env_name: "{{ tooling_domain }}"
+ 
+# wis-archival KMS key alias
+s3_archive_kms_key_alias: "{{ aws_account_name }}-s3-{{ tibco_env_name }}-{{ application_name }}-kmskey"
+lambda_archive_kms_key_alias: "{{ aws_account_name }}-lambda-{{ tibco_env_name }}-{{ application_name }}-kmskey"
+ 
+# wis-archival batch files limit for archival Lambda
+batchSize: 100
+ 
+# wis-archival Archival Lambda configs
+bufferSize: 1024
+MemorySize: 512
+Timeout: 900
+ 
+# wis-archival Retrieval Lambda configs
+RevbufferSize: 1024
+RevMemorySize: 512
+RevTimeout: 60
+ 
+# wis-archival EFSsourcePath
+efs_source_path: "/mnt/efs"
+efs_processing_directory: "/mnt/efs/processing"
+ 
+# passphrase
+passPhrase: "{{  lookup('aws_ssm', '/{{ tooling_domain }}/wis-archive/lambda/gpg/passphrase', decrypt=true ) }}"
