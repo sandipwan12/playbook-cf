@@ -4,7 +4,7 @@
 application_name: "sandip-test"
  
 # wis-archival Env Name
-tibco_env_name: "{{ tooling_domain }}"
+tibco_env_name: "nonprod"
  
 # wis-archival KMS key alias
 s3_archive_kms_key_alias: "{{ aws_account_name }}-s3-{{ tibco_env_name }}-{{ application_name }}-kmskey"
