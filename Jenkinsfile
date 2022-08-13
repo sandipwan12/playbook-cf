@@ -1,8 +1,5 @@
 pipeline {
     agent any
-    tools {
-        jdk 'oracle jdk'
-    }
     stages {
         stage('Build') {
             steps{
