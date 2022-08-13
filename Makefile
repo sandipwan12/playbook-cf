@@ -34,8 +34,8 @@ delete: get-env-config
  
 ## retrieves the environment inventory
 get-env-config:
-    rm -rf hello-env-config-$(ENV_NAME)
+	rm -rf hello-env-config-$(ENV_NAME)
 	git clone https://github.com/sandipwan12/hello-env-config-$(ENV_NAME).git
  
 create-stack: get-env-config
-    $(PLAYBOOK) $(PLAYBOOK_DEBUG) -i hello-env-config-$(ENV_NAME)/inventory $(CREATE_PLAYBOOK)
+	$(PLAYBOOK) $(PLAYBOOK_DEBUG) -i hello-env-config-$(ENV_NAME)/inventory $(CREATE_PLAYBOOK)
