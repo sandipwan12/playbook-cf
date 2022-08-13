@@ -60,9 +60,9 @@ vpc_id: "vpc-08eb72b7f5f5f61de"
 vpc_ip_range: "172.31.0.0/16"
  
 # Private vpc subnets as this is the app stack
-subnet_az_a: subnet-031fd1fff130eea79
-subnet_az_b: subnet-07491d14fc7fad230
-subnet_az_c: subnet-080b8e902a6b0dfab
+subnet_az_a: subnet-0db75d8f3d6f5a6b1
+subnet_az_b: subnet-08067d4b0acf89262
+subnet_az_c: subnet-0bd201a59078d2104
  
 # HIP proxy details
 # hip_proxy: "http://forwardproxy"
