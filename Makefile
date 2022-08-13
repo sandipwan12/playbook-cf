@@ -20,10 +20,10 @@ ifndef ENV_NAME
 endif
  
 ## check that the ENV_GIT_TAG var was passed in
-check-env-tag:
-ifndef ENV_GIT_TAG
-                $(error ENV_GIT_TAG is undefined)
-endif
+#check-env-tag:
+#ifndef ENV_GIT_TAG
+#               $(error ENV_GIT_TAG is undefined)
+#endif
  
 ## targets/rules for execution
  
