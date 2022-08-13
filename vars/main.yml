@@ -29,3 +29,71 @@ efs_processing_directory: "/mnt/efs/processing"
  
 # passphrase
 passPhrase: "{{  lookup('aws_ssm', '/{{ tooling_domain }}/wis-archive/lambda/gpg/passphrase', decrypt=true ) }}"
+
+
+
+# Environment specific variables for nonprod
+# AWS Tag values for wis-Archive
+# tag_costcentre: "V_WealthInt"
+# tag_AccountID: "ML0827"
+# tag_name: "wis-{{ tibco_env_name }}-app-{{ application_name }}"
+# tag_powermgt: mbh
+# tag_Owner: "wis-{{ tooling_domain }}"
+# tag_env: "{{ tooling_domain }}"
+ 
+# AWS Resource Names and IDs for wis-Archive nonprod 
+aws_account_id: 215615435839
+aws_account_admin_role: admin
+# aws_account_readonly_role: AUR-Resource-AWS-wealthintnonprod-readonly
+aws_account_name: sandiptest
+base_tooling_env_stack_name: wis-{{ tooling_env_name }}-tooling-env-foundation
+# tooling_server_sg: "sg-0d33de614dcdada5a"
+# keypair_name: wis-{{ tooling_env_name }}-tooling-keypair
+ 
+# AWS S3 bucket used to keep wis-Archive Lambda artifacts (Jar file for Archival and Retrieval Lambda)
+s3_software_package_bucket: "hellotrupti"
+ 
+# Private vpc as this is the app stack
+vpc_id: "vpc-08eb72b7f5f5f61de"
+ 
+# Private vpc range as this is the app stack
+vpc_ip_range: "172.31.0.0/16"
+ 
+# Private vpc subnets as this is the app stack
+subnet_az_a: subnet-031fd1fff130eea79
+subnet_az_b: subnet-07491d14fc7fad230
+subnet_az_c: subnet-080b8e902a6b0dfab
+ 
+# HIP proxy details
+# hip_proxy: "http://forwardproxy"
+# hip_proxy_port: 3128
+# hip_no_proxy: "localhost,127.0.0.1,169.254.169.254,s3.ap-southeast-2.amazonaws.com"
+ 
+#VPCE
+# private_vpce: vpce-0b68b5b6ad0b7db19
+# tooling_vpce: vpce-010c3b2709277fe0a
+# provisioning_profile_name: WealthIntProvisioningInstanceProfile
+ 
+# Env Name
+tooling_env_name: {{ tooling_domain }}
+ 
+# bucket for cloud formation template storage by AWS
+bucket_cf_templates: "cf-templates-70q14nsca76m-ap-south-1"
+## this bucket is required as some aws cf and actions generate templates that need to be stored.
+## If no bucket is present, it creates a bucket automatically that doesnt have any security standards in place
+ 
+# General
+tooling_domain: nonprod
+region: "ap-south-1"
+ 
+# Service Accounts
+tooling_svc_account: "srv-tib-tooling-np"
+ 
+tibco_envs:
+  - nonprod
+ 
+# dynatrace related configs
+# dynatrace_Server: "https://10.156.205.70:9999/communication"
+# dynatrace_Tenant: kxq10615
+# dynatrace_TenantToken: "{{  lookup('aws_ssm', '/nonprod/wis/dynatrace/TenantToken', decrypt=true ) }}"
+# dynatrace_HostGroup: "wis_{{ tooling_domain }}"
