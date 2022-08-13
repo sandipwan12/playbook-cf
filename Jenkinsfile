@@ -1,6 +1,5 @@
 pipeline {
   agent any
-  stages {
     stage('Env setup') {
       steps {
         script {
@@ -22,5 +21,4 @@ pipeline {
         }
       }
     }
-  }
 }
