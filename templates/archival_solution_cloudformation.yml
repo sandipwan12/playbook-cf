@@ -14,6 +14,19 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
+  
+  # IAM role for Archive and Retrieve Lambda with require permission for WIS-Archive solutions.
+  WisArchiveLambdaRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName: "{{ application_name }}-{{tibco_env_name}}-app-S3FullAccess-LambdaRole"
+      AssumeRolePolicyDocument: '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"lambda.amazonaws.com"},"Action":"sts:AssumeRole"}]}'
+      MaxSessionDuration: 3600
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaRole"
+        - "arn:aws:iam::aws:policy/AmazonElasticFileSystemClientFullAccess"
  
   # Archival lambda for files processing for WIS-Archive solutions.
   WisArchiveArchivalLambda:
