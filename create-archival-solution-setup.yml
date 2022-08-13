@@ -16,7 +16,7 @@
  
   - name: set account name of current account
     set_fact:
-      aws_account_name: "{{ account_alias_name.AccountAliases[0] }}"
+      aws_account_name: "my_sweet_account"
       
   - name: launching an tibco {{ application_name }}-ansible-cloudformation stack
     cloudformation:
