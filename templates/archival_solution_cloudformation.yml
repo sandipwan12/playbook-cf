@@ -8,7 +8,7 @@ Resources:
   WisArchiveArchivalBucket:
     Type: "AWS::S3::Bucket"
     Properties:
-      BucketName: !Sub "${AWSAccountName}-{{ tibco_env_name }}-wis-archival"
+      BucketName: !Sub "$sandip-archival"
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
