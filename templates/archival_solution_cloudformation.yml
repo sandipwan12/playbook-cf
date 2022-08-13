@@ -47,9 +47,6 @@ Resources:
       Timeout: {{ Timeout }}
       TracingConfig:
         Mode: "PassThrough"
-      VpcConfig:
-        SubnetIds:
-          - "{{ subnet_az_a }}"
       
 Outputs:
   StackName:
