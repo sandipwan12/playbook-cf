@@ -75,7 +75,7 @@ subnet_az_c: subnet-080b8e902a6b0dfab
 # provisioning_profile_name: WealthIntProvisioningInstanceProfile
  
 # Env Name
-tooling_env_name: {{ tooling_domain }}
+tooling_env_name: nonprod
  
 # bucket for cloud formation template storage by AWS
 bucket_cf_templates: "cf-templates-70q14nsca76m-ap-south-1"
