@@ -8,7 +8,7 @@ Resources:
   WisArchiveArchivalBucket:
     Type: "AWS::S3::Bucket"
     Properties:
-      BucketName: "sandip-archival"
+      BucketName: "sandip-archival-123"
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
